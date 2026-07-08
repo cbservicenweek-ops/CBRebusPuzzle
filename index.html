@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comcast Rebus</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Firebase V8 (Simplest for Vanilla JS without bundlers) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body>
+    <div id="app-container">
+        
+        <!-- LANDING PAGE -->
+        <div id="view-landing" class="view active">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/a/a3/Comcast_Logo.svg" alt="Comcast" class="logo">
+            <h1>Rebus Puzzle Challenge</h1>
+            <div class="button-group">
+                <button onclick="showView('view-host-auth')">I am the Host</button>
+                <button onclick="showView('view-player-join')">I am a Player</button>
+            </div>
+        </div>
+
+        <!-- HOST AUTH -->
+        <div id="view-host-auth" class="view">
+            <h2>Host Login</h2>
+            <input type="password" id="host-password" placeholder="Enter Host Password">
+            <button onclick="verifyHost()">Login</button>
+            <button class="secondary" onclick="showView('view-landing')">Back</button>
+        </div>
+
+        <!-- HOST SETUP CONSOLE -->
+        <div id="view-host-setup" class="view">
+            <h2>Game Console: Setup Room</h2>
+            <div class="form-group">
+                <label>Puzzle Image:</label>
+                <input type="file" id="host-image" accept="image/*">
+            </div>
+            <div class="form-group">
+                <label>Hint 1 (Free Hint):</label>
+                <input type="text" id="host-hint1" placeholder="Visible immediately">
+            </div>
+            <div class="form-group">
+                <label>Hint 2 (Hidden):</label>
+                <input type="text" id="host-hint2" placeholder="Reveal later">
+            </div>
+            <div class="form-group">
+                <label>Correct Answer:</label>
+                <input type="text" id="host-answer" placeholder="Secret answer">
+            </div>
+            <div class="form-group">
+                <label>Comma-separated Team Names:</label>
+                <input type="text" id="host-teams" placeholder="e.g., Custody, Development, QA">
+            </div>
+            <button onclick="createRoom()">Create Room & Start</button>
+        </div>
+
+        <!-- PLAYER JOIN -->
+        <div id="view-player-join" class="view">
+            <h2>Join Game</h2>
+            <input type="text" id="player-room-code" placeholder="Room Code (e.g., ABCD)">
+            <input type="text" id="player-name" placeholder="Your Name">
+            <div id="team-selection" style="display: none;">
+                <label>Select Team:</label>
+                <select id="player-team"></select>
+                <button onclick="joinGame()">Enter Game</button>
+            </div>
+            <button id="fetch-teams-btn" onclick="fetchTeams()">Next</button>
+            <button class="secondary" onclick="showView('view-landing')">Back</button>
+        </div>
+
+        <!-- GAME BOARD -->
+        <div id="view-game" class="view game-layout">
+            
+            <!-- Top: Scores & Header -->
+            <div class="game-header">
+                <h2>Room: <span id="display-room-code"></span></h2>
+                <div id="team-scores" class="scores-container"></div>
+            </div>
+
+            <div class="game-body">
+                <!-- Left: Buzzer Queue -->
+                <div class="panel left-panel">
+                    <h3>Buzzer Queue</h3>
+                    <ul id="buzzer-list"></ul>
+                </div>
+
+                <!-- Center: Puzzle -->
+                <div class="panel center-panel">
+                    <img id="puzzle-image" src="" alt="Waiting for puzzle...">
+                    <div class="hints-box">
+                        <p id="display-hint1">Hint 1: Waiting...</p>
+                        <p id="display-hint2" style="display:none;">Hint 2: Waiting...</p>
+                    </div>
+                </div>
+
+                <!-- Right: Player Buzzer / Host Controls -->
+                <div class="panel right-panel">
+                    
+                    <!-- Player specific view -->
+                    <div id="player-controls" style="display: none;">
+                        <button id="btn-buzz" class="buzzer-btn" disabled onclick="buzzIn()">BUZZ IN</button>
+                        <p id="player-status"></p>
+                    </div>
+
+                    <!-- Host specific view -->
+                    <div id="host-controls" style="display: none;">
+                        <h3>Host Controls</h3>
+                        <p>Answer: <strong id="host-display-answer"></strong></p>
+                        <button id="btn-toggle-buzzer" onclick="toggleBuzzer()">Enable Buzzers</button>
+                        <button onclick="revealHint()">Reveal Hint 2</button>
+                        
+                        <div id="judging-panel" style="display:none;">
+                            <h4>Active Player: <span id="active-player-name"></span></h4>
+                            <button class="correct-btn" onclick="judgeAnswer(true)">Correct (+10)</button>
+                            <button class="wrong-btn" onclick="judgeAnswer(false)">Wrong (-5)</button>
+                        </div>
+                        <hr>
+                        <h4>Next Round</h4>
+                        <input type="file" id="next-image" accept="image/*">
+                        <input type="text" id="next-hint1" placeholder="Hint 1">
+                        <input type="text" id="next-hint2" placeholder="Hint 2">
+                        <input type="text" id="next-answer" placeholder="Answer">
+                        <button onclick="startNextRound()">Push Next Round</button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
