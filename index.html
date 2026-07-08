@@ -5,12 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comcast Rebus</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Firebase V8 -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <!-- Confetti Library -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 </head>
 <body>
     <div id="app-container">
         
+        <!-- LANDING PAGE -->
         <div id="view-landing" class="view active">
             <h1 class="brand-title">Comcast Rebus</h1>
             <p class="subtitle">The Ultimate Puzzle Challenge</p>
@@ -20,6 +24,7 @@
             </div>
         </div>
 
+        <!-- HOST AUTH -->
         <div id="view-host-auth" class="view">
             <h2>Host Login</h2>
             <input type="password" id="host-password" placeholder="Enter Host Password">
@@ -27,6 +32,7 @@
             <button type="button" class="secondary" onclick="showView('view-landing')">Back</button>
         </div>
 
+        <!-- HOST SETUP CONSOLE (BATCH ROUNDS) -->
         <div id="view-host-setup" class="view" style="overflow-y: auto; justify-content: flex-start; padding-top: 20px;">
             <h2>Game Console: Setup Room</h2>
             <div class="form-group" style="text-align: left; width: 100%; max-width: 500px; margin-bottom: 20px;">
@@ -46,10 +52,11 @@
 
             <div style="margin-top: 20px;">
                 <button type="button" onclick="addRoundSetup()" class="secondary">Add Another Round</button>
-                <button type="button" onclick="createRoom()">Create Room & Start Game</button>
+                <button type="button" onclick="createRoom(event)">Create Room & Start Game</button>
             </div>
         </div>
 
+        <!-- PLAYER JOIN -->
         <div id="view-player-join" class="view">
             <h2>Join Game</h2>
             <input type="text" id="player-room-code" placeholder="Room Code (e.g., ABCD)">
@@ -63,6 +70,7 @@
             <button type="button" class="secondary" onclick="showView('view-landing')">Back</button>
         </div>
 
+        <!-- GAME BOARD -->
         <div id="view-game" class="view game-layout">
             <div class="game-header">
                 <h2>Room: <span id="display-room-code"></span> | Round: <span id="display-round-num">1</span></h2>
@@ -78,41 +86,43 @@
                 <div class="panel center-panel">
                     <img id="puzzle-image" src="" alt="Waiting for puzzle...">
                     <div class="hints-box">
-                        <p id="display-hint1">Hint 1: Waiting...</p>
-                        <p id="display-hint2" style="display:none;">Hint 2: Waiting...</p>
+                        <div id="display-hint1" class="hint-card"><strong>Hint 1:</strong> <span>Waiting...</span></div>
+                        <div id="display-hint2" class="hint-card" style="display:none;"><strong>Hint 2:</strong> <span>Waiting...</span></div>
                     </div>
                 </div>
 
                 <div class="panel right-panel">
-                    <div id="player-controls" style="display: none;">
+                    <div id="player-controls" style="display: none; width: 100%;">
                         <button type="button" id="btn-buzz" class="buzzer-btn" disabled onclick="buzzIn()">BUZZ IN</button>
-                        <p id="player-status"></p>
+                        <div id="player-status" class="status-container"></div>
                     </div>
 
-                    <div id="host-controls" style="display: none;">
+                    <div id="host-controls" style="display: none; width: 100%;">
                         <h3>Host Controls</h3>
-                        <p>Answer: <strong id="host-display-answer"></strong></p>
+                        <p>Answer: <strong id="host-display-answer" style="color:var(--primary-color); font-size:1.2rem;"></strong></p>
                         <button type="button" id="btn-toggle-buzzer" onclick="toggleBuzzer()">Enable Buzzers</button>
                         <button type="button" onclick="revealHint()">Reveal Hint 2</button>
                         
                         <div id="judging-panel" style="display:none; margin-top:15px; padding:10px; background:#444; border-radius:6px;">
                             <h4>Active: <span id="active-player-name"></span></h4>
-                            <button type="button" class="correct-btn" onclick="judgeAnswer(true)">Correct (+10)</button>
-                            <button type="button" class="wrong-btn" onclick="judgeAnswer(false)">Wrong (-5)</button>
+                            <button type="button" class="correct-btn" onclick="judgeAnswer(true)">Correct</button>
+                            <button type="button" class="wrong-btn" onclick="judgeAnswer(false)">Wrong</button>
                         </div>
                         <hr>
-                        <button type="button" onclick="startNextRound()" style="width: 100%; margin-top: 15px;">Advance to Next Round / Finish</button>
+                        <!-- Kept as a fallback in case nobody guesses right and host needs to skip -->
+                        <button type="button" onclick="startNextRound()" class="secondary" style="width: 100%; margin-top: 15px;">Skip to Next Round</button>
                     </div>
                 </div>
             </div>
         </div>
 
+        <!-- ENDGAME WINNER SCREEN -->
         <div id="view-endgame" class="view">
-            <h1 style="font-size: 3rem; color: var(--primary-color);">Game Over!</h1>
-            <h2 id="winner-team-display" style="font-size: 2rem;"></h2>
-            <p id="winner-score-display" style="font-size: 1.5rem; margin-bottom: 20px;"></p>
+            <h1 style="font-size: 4rem; color: var(--primary-color); margin-bottom: 10px;">Game Over!</h1>
+            <h2 id="winner-team-display" style="font-size: 2.5rem; text-shadow: 0 0 10px rgba(255,255,255,0.3);"></h2>
+            <p id="winner-score-display" style="font-size: 1.8rem; margin-bottom: 20px; font-weight: bold;"></p>
             <h3>Team Members:</h3>
-            <ul id="winner-members-list" style="list-style: none; padding: 0; font-size: 1.2rem;"></ul>
+            <ul id="winner-members-list" style="list-style: none; padding: 0; font-size: 1.4rem;"></ul>
             
             <div id="host-endgame-controls" style="display:none; margin-top: 40px;">
                 <button type="button" onclick="location.reload()">Reset Entire Game</button>
@@ -120,6 +130,16 @@
         </div>
 
     </div>
+
+    <!-- CUSTOM ALERT MODAL -->
+    <div id="custom-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 id="modal-title">Notice</h3>
+            <p id="modal-text"></p>
+            <button type="button" onclick="closeModal()">OK</button>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
