@@ -16,6 +16,7 @@ let currentRoom = "";
 let myPlayerId = "";
 let myTeam = "";
 let modalCallback = null;
+let lastAlertTimestamp = 0; // Tracks the newest alert
 
 // --- CUSTOM UI HELPERS ---
 function showView(viewId) {
@@ -150,7 +151,7 @@ async function createRoom(event) {
             currentRoundIndex: 0,
             gameState: {
                 showHint2: false, buzzerEnabled: false, buzzerQueue: [], 
-                wrongGuesses: [], activeBuzzerId: null, lastWrongTeam: null
+                wrongGuesses: [], activeBuzzerId: null, lastWrongTeam: null, alertEvent: null
             }
         };
 
@@ -229,6 +230,26 @@ function listenToRoom() {
         else updatePlayerControls(data.gameState);
         
         processBuzzerQueue(data.gameState);
+
+        // --- GLOBAL ALERT SYSTEM ---
+        if (data.gameState.alertEvent) {
+            const alertData = data.gameState.alertEvent;
+            
+            // Only trigger if this is a brand new alert
+            if (alertData.timestamp > lastAlertTimestamp) {
+                lastAlertTimestamp = alertData.timestamp;
+                
+                // If it's correct, only the Host gets the callback to advance the game
+                if (isHost && alertData.type === "correct") {
+                    customAlert(alertData.message, alertData.title, () => {
+                        startNextRound();
+                    });
+                } else {
+                    // Players just view the message and hit OK to close locally
+                    customAlert(alertData.message, alertData.title);
+                }
+            }
+        }
     });
 }
 
@@ -259,7 +280,6 @@ function updatePlayerControls(gameState) {
     const hasBuzzed = (gameState.buzzerQueue || []).some(p => p.id === myPlayerId);
     const isWrong = (gameState.wrongGuesses || []).includes(myPlayerId);
 
-    // Filter available players to find queue position
     let availablePlayers = (gameState.buzzerQueue || []).filter(p => !(gameState.wrongGuesses || []).includes(p.id));
     let myIndex = availablePlayers.findIndex(p => p.id === myPlayerId);
 
@@ -271,7 +291,6 @@ function updatePlayerControls(gameState) {
         btn.disabled = false;
     }
 
-    // Dynamic Status Logic
     if (gameState.activeBuzzerId === myPlayerId) {
         status.innerHTML = `<div class="turn-notice">Your Turn to Answer!</div>`;
     } else if (hasBuzzed && !isWrong) {
@@ -340,23 +359,37 @@ function judgeAnswer(isCorrect) {
         if (!activeId) return;
 
         const activePlayer = data.gameState.buzzerQueue.find(p => p.id === activeId);
+        const currentAnswer = data.rounds[data.currentRoundIndex].answer;
         
         if (isCorrect) {
             let newScore = (data.teams[activePlayer.team].score || 0) + 10;
-            db.ref(`rooms/${currentRoom}/teams/${activePlayer.team}/score`).set(newScore);
-            db.ref(`rooms/${currentRoom}/gameState/buzzerEnabled`).set(false);
             
-            // Auto-advance round logic using modal callback
-            customAlert(`${activePlayer.team} got it right (+10 points)! Moving to next round...`, "Correct!", () => {
-                startNextRound();
+            db.ref(`rooms/${currentRoom}/teams/${activePlayer.team}/score`).set(newScore);
+            db.ref(`rooms/${currentRoom}/gameState`).update({
+                buzzerEnabled: false,
+                alertEvent: {
+                    title: "Correct! 🎉",
+                    message: `${activePlayer.team} got it right!\n\nThe answer was: ${currentAnswer}`,
+                    type: "correct",
+                    timestamp: Date.now()
+                }
             });
         } else {
-            let newScore = (data.teams[activePlayer.team].score || 0) + 5;
-            db.ref(`rooms/${currentRoom}/teams/${activePlayer.team}/score`).set(newScore);
+            let newScore = (data.teams[activePlayer.team].score || 0) - 5;
             let wrongGuesses = data.gameState.wrongGuesses || [];
             wrongGuesses.push(activeId);
-            db.ref(`rooms/${currentRoom}/gameState/wrongGuesses`).set(wrongGuesses);
-            db.ref(`rooms/${currentRoom}/gameState/lastWrongTeam`).set(activePlayer.team);
+            
+            db.ref(`rooms/${currentRoom}/teams/${activePlayer.team}/score`).set(newScore);
+            db.ref(`rooms/${currentRoom}/gameState`).update({
+                wrongGuesses: wrongGuesses,
+                lastWrongTeam: activePlayer.team,
+                alertEvent: {
+                    title: "Incorrect! ❌",
+                    message: `${activePlayer.name} guessed incorrectly. Moving to the next player!`,
+                    type: "incorrect",
+                    timestamp: Date.now()
+                }
+            });
         }
     });
 }
@@ -377,7 +410,8 @@ function startNextRound() {
                     buzzerQueue: [],
                     wrongGuesses: [],
                     activeBuzzerId: null,
-                    lastWrongTeam: null
+                    lastWrongTeam: null,
+                    alertEvent: null // Clear the alert for the new round
                 }
             });
         }
