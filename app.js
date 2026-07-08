@@ -15,17 +15,49 @@ let isHost = false;
 let currentRoom = "";
 let myPlayerId = "";
 let myTeam = "";
+let modalCallback = null;
 
+// --- CUSTOM UI HELPERS ---
 function showView(viewId) {
     document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
     document.getElementById(viewId).classList.add('active');
 }
 
-// NEW: Advanced Auto-Compressor for Large Images
+function customAlert(message, title = "Notice", callback = null) {
+    document.getElementById('modal-title').innerText = title;
+    document.getElementById('modal-text').innerText = message;
+    document.getElementById('custom-modal').classList.add('active');
+    modalCallback = callback;
+}
+
+function closeModal() {
+    document.getElementById('custom-modal').classList.remove('active');
+    if (modalCallback) {
+        modalCallback();
+        modalCallback = null;
+    }
+}
+
+function triggerFireworks() {
+    var duration = 15 * 1000;
+    var animationEnd = Date.now() + duration;
+    var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+    function randomInRange(min, max) { return Math.random() * (max - min) + min; }
+
+    var interval = setInterval(function() {
+        var timeLeft = animationEnd - Date.now();
+        if (timeLeft <= 0) { return clearInterval(interval); }
+        var particleCount = 50 * (timeLeft / duration);
+        confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } }));
+        confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } }));
+    }, 250);
+}
+
+// --- CORE LOGIC ---
 function compressImageAndGetBase64(file) {
     return new Promise((resolve, reject) => {
         if (!file) { resolve(""); return; }
-        
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onload = (event) => {
@@ -33,23 +65,13 @@ function compressImageAndGetBase64(file) {
             img.src = event.target.result;
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                const MAX_WIDTH = 800; // Resize to max 800px width
-                
+                const MAX_WIDTH = 800; 
                 let width = img.width;
                 let height = img.height;
-                
-                if (width > MAX_WIDTH) {
-                    height = Math.round((height * MAX_WIDTH) / width);
-                    width = MAX_WIDTH;
-                }
-                
-                canvas.width = width;
-                canvas.height = height;
-                
+                if (width > MAX_WIDTH) { height = Math.round((height * MAX_WIDTH) / width); width = MAX_WIDTH; }
+                canvas.width = width; canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-                
-                // Compress as JPEG at 80% quality (massively reduces file size)
                 resolve(canvas.toDataURL('image/jpeg', 0.8));
             };
             img.onerror = error => reject(error);
@@ -58,17 +80,13 @@ function compressImageAndGetBase64(file) {
     });
 }
 
-function generateCode() {
-    return Math.random().toString(36).substring(2, 6).toUpperCase();
-}
+function generateCode() { return Math.random().toString(36).substring(2, 6).toUpperCase(); }
 
-// --- HOST BATCH SETUP FUNCTIONS ---
+// --- HOST SETUP ---
 function verifyHost() {
     const pw = document.getElementById('host-password').value;
-    if (pw === "Bryan") {
-        isHost = true;
-        showView('view-host-setup');
-    } else { alert("Incorrect password"); }
+    if (pw === "Bryan") { isHost = true; showView('view-host-setup'); } 
+    else { customAlert("Incorrect password", "Access Denied"); }
 }
 
 function addRoundSetup() {
@@ -86,14 +104,12 @@ function addRoundSetup() {
     container.appendChild(div);
 }
 
-async function createRoom() {
+async function createRoom(event) {
     const teamsRaw = document.getElementById('host-teams').value;
-    if (!teamsRaw) { alert("Please enter team names."); return; }
+    if (!teamsRaw) { customAlert("Please enter team names.", "Setup Error"); return; }
 
     const roundBlocks = document.querySelectorAll('.round-setup-block');
     let roundsData = [];
-
-    // Change button text to show it's working (compression might take 2-3 seconds for 20 big images)
     const createBtn = event.target;
     createBtn.innerText = "Processing Images... Please wait";
     createBtn.disabled = true;
@@ -113,23 +129,18 @@ async function createRoom() {
             const answer = answerInput.value;
 
             if (!file || !hint1 || !answer) {
-                alert("Please ensure all rounds have an image, hint 1, and an answer."); 
+                customAlert("Please ensure all rounds have an image, hint 1, and an answer.", "Setup Error"); 
                 createBtn.innerText = "Create Room & Start Game";
                 createBtn.disabled = false;
                 return;
             }
-            
-            // This compresses the image before saving!
             const b64Image = await compressImageAndGetBase64(file);
             roundsData.push({ image: b64Image, hint1, hint2, answer });
         }
 
         currentRoom = generateCode();
-        
         let teams = {};
-        teamsRaw.split(',').forEach(t => {
-            if(t.trim()) teams[t.trim()] = { score: 0 };
-        });
+        teamsRaw.split(',').forEach(t => { if(t.trim()) teams[t.trim()] = { score: 0 }; });
 
         const roomData = {
             status: "playing",
@@ -138,36 +149,30 @@ async function createRoom() {
             rounds: roundsData,
             currentRoundIndex: 0,
             gameState: {
-                showHint2: false,
-                buzzerEnabled: false,
-                buzzerQueue: [], 
-                wrongGuesses: [], 
-                activeBuzzerId: null,
-                lastWrongTeam: null
+                showHint2: false, buzzerEnabled: false, buzzerQueue: [], 
+                wrongGuesses: [], activeBuzzerId: null, lastWrongTeam: null
             }
         };
 
         await db.ref(`rooms/${currentRoom}`).set(roomData);
-        
         document.getElementById('display-room-code').innerText = currentRoom;
         document.getElementById('host-controls').style.display = "block";
         showView('view-game');
         listenToRoom();
-
     } catch (error) {
-        console.error("Error creating room:", error);
-        alert("An error occurred while creating the room.");
+        console.error(error);
+        customAlert("An error occurred while creating the room.", "Error");
     } finally {
         createBtn.innerText = "Create Room & Start Game";
         createBtn.disabled = false;
     }
 }
 
-// --- PLAYER JOIN FUNCTIONS ---
+// --- PLAYER JOIN ---
 async function fetchTeams() {
     currentRoom = document.getElementById('player-room-code').value.toUpperCase();
     const name = document.getElementById('player-name').value;
-    if(!currentRoom || !name) { alert("Enter code and name."); return; }
+    if(!currentRoom || !name) { customAlert("Enter code and name.", "Hold on"); return; }
 
     const snapshot = await db.ref(`rooms/${currentRoom}/teams`).once('value');
     if (snapshot.exists()) {
@@ -181,7 +186,7 @@ async function fetchTeams() {
         });
         document.getElementById('team-selection').style.display = "block";
         document.getElementById('fetch-teams-btn').style.display = "none";
-    } else { alert("Room not found."); }
+    } else { customAlert("Room not found.", "Error"); }
 }
 
 function joinGame() {
@@ -190,7 +195,6 @@ function joinGame() {
     const name = document.getElementById('player-name').value;
 
     db.ref(`rooms/${currentRoom}/players/${myPlayerId}`).set({ name, team: myTeam });
-    
     document.getElementById('display-room-code').innerText = currentRoom;
     document.getElementById('player-controls').style.display = "block";
     showView('view-game');
@@ -202,9 +206,7 @@ function buzzIn() {
     const queueRef = db.ref(`rooms/${currentRoom}/gameState/buzzerQueue`);
     queueRef.transaction(currentQueue => {
         let q = currentQueue || [];
-        if (!q.find(p => p.id === myPlayerId)) {
-            q.push({ id: myPlayerId, name: name, team: myTeam });
-        }
+        if (!q.find(p => p.id === myPlayerId)) { q.push({ id: myPlayerId, name: name, team: myTeam }); }
         return q;
     });
 }
@@ -215,15 +217,12 @@ function listenToRoom() {
         const data = snapshot.val();
         if(!data) return;
 
-        if (data.status === "ended") {
-            displayWinner(data);
-            return;
-        }
+        if (data.status === "ended") { displayWinner(data); return; }
 
         updateScores(data.teams);
-        
         const currentRoundData = data.rounds[data.currentRoundIndex];
         document.getElementById('display-round-num').innerText = data.currentRoundIndex + 1;
+        
         updateBoard(currentRoundData, data.gameState);
         
         if (isHost) updateHostControls(currentRoundData, data.gameState);
@@ -243,12 +242,12 @@ function updateScores(teams) {
 
 function updateBoard(roundData, gameState) {
     document.getElementById('puzzle-image').src = roundData.image;
-    document.getElementById('display-hint1').innerText = "Hint 1: " + roundData.hint1;
+    document.querySelector('#display-hint1 span').innerText = roundData.hint1;
     
     const hint2El = document.getElementById('display-hint2');
     if(gameState.showHint2 && roundData.hint2) {
         hint2El.style.display = "block";
-        hint2El.innerText = "Hint 2: " + roundData.hint2;
+        hint2El.querySelector('span').innerText = roundData.hint2;
     } else {
         hint2El.style.display = "none";
     }
@@ -260,23 +259,27 @@ function updatePlayerControls(gameState) {
     const hasBuzzed = (gameState.buzzerQueue || []).some(p => p.id === myPlayerId);
     const isWrong = (gameState.wrongGuesses || []).includes(myPlayerId);
 
+    // Filter available players to find queue position
+    let availablePlayers = (gameState.buzzerQueue || []).filter(p => !(gameState.wrongGuesses || []).includes(p.id));
+    let myIndex = availablePlayers.findIndex(p => p.id === myPlayerId);
+
     if (!gameState.buzzerEnabled || isWrong) {
         btn.disabled = true;
     } else if (hasBuzzed) {
         btn.disabled = true;
-        status.innerText = "Buzzed in! Waiting...";
     } else {
         btn.disabled = false;
-        status.innerText = "Buzzer active!";
     }
 
+    // Dynamic Status Logic
     if (gameState.activeBuzzerId === myPlayerId) {
-        status.innerText = "YOUR TURN TO ANSWER!";
-        status.style.color = "#E50914";
-        status.style.fontWeight = "bold";
+        status.innerHTML = `<div class="turn-notice">Your Turn to Answer!</div>`;
+    } else if (hasBuzzed && !isWrong) {
+        status.innerHTML = `<div class="queue-notice">Buzzed in! You are <span class="queue-number">#${myIndex + 1}</span> in line.</div>`;
+    } else if (isWrong) {
+        status.innerHTML = `<div class="queue-notice" style="color:#dc3545;">Incorrect guess. Waiting for next round.</div>`;
     } else {
-        status.style.color = "white";
-        status.style.fontWeight = "normal";
+        status.innerHTML = ``;
     }
 }
 
@@ -306,7 +309,7 @@ function processBuzzerQueue(gameState) {
 
     queue.forEach((p, index) => {
         let li = document.createElement('li');
-        li.innerText = `${index + 1}. ${p.name} (${p.team})`;
+        li.innerText = `${p.name} (${p.team})`;
         if (wrong.includes(p.id)) li.classList.add('wrong');
         else if (activePlayer && p.id === activePlayer.id) li.classList.add('active');
         listEl.appendChild(li);
@@ -342,7 +345,11 @@ function judgeAnswer(isCorrect) {
             let newScore = (data.teams[activePlayer.team].score || 0) + 10;
             db.ref(`rooms/${currentRoom}/teams/${activePlayer.team}/score`).set(newScore);
             db.ref(`rooms/${currentRoom}/gameState/buzzerEnabled`).set(false);
-            alert(`Correct! 10 points to ${activePlayer.team}.`);
+            
+            // Auto-advance round logic using modal callback
+            customAlert(`${activePlayer.team} got it right (+10 points)! Moving to next round...`, "Correct!", () => {
+                startNextRound();
+            });
         } else {
             let newScore = (data.teams[activePlayer.team].score || 0) - 5;
             db.ref(`rooms/${currentRoom}/teams/${activePlayer.team}/score`).set(newScore);
@@ -412,4 +419,7 @@ function displayWinner(data) {
     if (isHost) {
         document.getElementById('host-endgame-controls').style.display = "block";
     }
+
+    // FIREWORKS
+    triggerFireworks();
 }
