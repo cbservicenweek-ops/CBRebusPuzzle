@@ -351,7 +351,7 @@ function judgeAnswer(isCorrect) {
                 startNextRound();
             });
         } else {
-            let newScore = (data.teams[activePlayer.team].score || 0) - 5;
+            let newScore = (data.teams[activePlayer.team].score || 0) + 5;
             db.ref(`rooms/${currentRoom}/teams/${activePlayer.team}/score`).set(newScore);
             let wrongGuesses = data.gameState.wrongGuesses || [];
             wrongGuesses.push(activeId);
