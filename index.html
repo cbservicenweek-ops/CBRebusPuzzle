@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comcast Rebus</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Firebase V8 (Simplest for Vanilla JS without bundlers) -->
+    <!-- Firebase V8 -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
@@ -14,8 +14,8 @@
         
         <!-- LANDING PAGE -->
         <div id="view-landing" class="view active">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/a/a3/Comcast_Logo.svg" alt="Comcast" class="logo">
-            <h1>Rebus Puzzle Challenge</h1>
+            <h1 class="brand-title">Comcast Rebus</h1>
+            <p class="subtitle">The Ultimate Puzzle Challenge</p>
             <div class="button-group">
                 <button onclick="showView('view-host-auth')">I am the Host</button>
                 <button onclick="showView('view-player-join')">I am a Player</button>
@@ -30,30 +30,29 @@
             <button class="secondary" onclick="showView('view-landing')">Back</button>
         </div>
 
-        <!-- HOST SETUP CONSOLE -->
-        <div id="view-host-setup" class="view">
+        <!-- HOST SETUP CONSOLE (BATCH ROUNDS) -->
+        <div id="view-host-setup" class="view" style="overflow-y: auto; justify-content: flex-start; padding-top: 20px;">
             <h2>Game Console: Setup Room</h2>
-            <div class="form-group">
-                <label>Puzzle Image:</label>
-                <input type="file" id="host-image" accept="image/*">
-            </div>
-            <div class="form-group">
-                <label>Hint 1 (Free Hint):</label>
-                <input type="text" id="host-hint1" placeholder="Visible immediately">
-            </div>
-            <div class="form-group">
-                <label>Hint 2 (Hidden):</label>
-                <input type="text" id="host-hint2" placeholder="Reveal later">
-            </div>
-            <div class="form-group">
-                <label>Correct Answer:</label>
-                <input type="text" id="host-answer" placeholder="Secret answer">
-            </div>
-            <div class="form-group">
+            <div class="form-group" style="text-align: left; width: 100%; max-width: 500px; margin-bottom: 20px;">
                 <label>Comma-separated Team Names:</label>
-                <input type="text" id="host-teams" placeholder="e.g., Custody, Development, QA">
+                <input type="text" id="host-teams" placeholder="e.g., Custody, Development, QA" style="width: 100%;">
             </div>
-            <button onclick="createRoom()">Create Room & Start</button>
+            
+            <div id="rounds-container" style="width: 100%; max-width: 500px;">
+                <!-- Round 1 Default -->
+                <div class="round-setup-block">
+                    <h3>Round 1</h3>
+                    <input type="file" class="host-image" accept="image/*">
+                    <input type="text" class="host-hint1" placeholder="Hint 1 (Free Hint)">
+                    <input type="text" class="host-hint2" placeholder="Hint 2 (Hidden)">
+                    <input type="text" class="host-answer" placeholder="Correct Answer">
+                </div>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <button onclick="addRoundSetup()" class="secondary">Add Another Round</button>
+                <button onclick="createRoom()">Create Room & Start Game</button>
+            </div>
         </div>
 
         <!-- PLAYER JOIN -->
@@ -72,21 +71,17 @@
 
         <!-- GAME BOARD -->
         <div id="view-game" class="view game-layout">
-            
-            <!-- Top: Scores & Header -->
             <div class="game-header">
-                <h2>Room: <span id="display-room-code"></span></h2>
+                <h2>Room: <span id="display-room-code"></span> | Round: <span id="display-round-num">1</span></h2>
                 <div id="team-scores" class="scores-container"></div>
             </div>
 
             <div class="game-body">
-                <!-- Left: Buzzer Queue -->
                 <div class="panel left-panel">
                     <h3>Buzzer Queue</h3>
                     <ul id="buzzer-list"></ul>
                 </div>
 
-                <!-- Center: Puzzle -->
                 <div class="panel center-panel">
                     <img id="puzzle-image" src="" alt="Waiting for puzzle...">
                     <div class="hints-box">
@@ -95,39 +90,43 @@
                     </div>
                 </div>
 
-                <!-- Right: Player Buzzer / Host Controls -->
                 <div class="panel right-panel">
-                    
-                    <!-- Player specific view -->
                     <div id="player-controls" style="display: none;">
                         <button id="btn-buzz" class="buzzer-btn" disabled onclick="buzzIn()">BUZZ IN</button>
                         <p id="player-status"></p>
                     </div>
 
-                    <!-- Host specific view -->
                     <div id="host-controls" style="display: none;">
                         <h3>Host Controls</h3>
                         <p>Answer: <strong id="host-display-answer"></strong></p>
                         <button id="btn-toggle-buzzer" onclick="toggleBuzzer()">Enable Buzzers</button>
                         <button onclick="revealHint()">Reveal Hint 2</button>
                         
-                        <div id="judging-panel" style="display:none;">
-                            <h4>Active Player: <span id="active-player-name"></span></h4>
+                        <div id="judging-panel" style="display:none; margin-top:15px; padding:10px; background:#444; border-radius:6px;">
+                            <h4>Active: <span id="active-player-name"></span></h4>
                             <button class="correct-btn" onclick="judgeAnswer(true)">Correct (+10)</button>
                             <button class="wrong-btn" onclick="judgeAnswer(false)">Wrong (-5)</button>
                         </div>
                         <hr>
-                        <h4>Next Round</h4>
-                        <input type="file" id="next-image" accept="image/*">
-                        <input type="text" id="next-hint1" placeholder="Hint 1">
-                        <input type="text" id="next-hint2" placeholder="Hint 2">
-                        <input type="text" id="next-answer" placeholder="Answer">
-                        <button onclick="startNextRound()">Push Next Round</button>
+                        <button onclick="startNextRound()" style="width: 100%; margin-top: 15px;">Advance to Next Round / Finish</button>
                     </div>
-
                 </div>
             </div>
         </div>
+
+        <!-- ENDGAME WINNER SCREEN -->
+        <div id="view-endgame" class="view">
+            <h1 style="font-size: 3rem; color: var(--primary-color);">Game Over!</h1>
+            <h2 id="winner-team-display" style="font-size: 2rem;"></h2>
+            <p id="winner-score-display" style="font-size: 1.5rem; margin-bottom: 20px;"></p>
+            <h3>Team Members:</h3>
+            <ul id="winner-members-list" style="list-style: none; padding: 0; font-size: 1.2rem;"></ul>
+            
+            <div id="host-endgame-controls" style="display:none; margin-top: 40px;">
+                <button onclick="location.reload()">Reset Entire Game</button>
+            </div>
+        </div>
+
     </div>
     <script src="app.js"></script>
 </body>
