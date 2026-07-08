@@ -375,7 +375,7 @@ function judgeAnswer(isCorrect) {
                 }
             });
         } else {
-            let newScore = (data.teams[activePlayer.team].score || 0) - 5;
+            let newScore = (data.teams[activePlayer.team].score || 0) + 5;
             let wrongGuesses = data.gameState.wrongGuesses || [];
             wrongGuesses.push(activeId);
             
